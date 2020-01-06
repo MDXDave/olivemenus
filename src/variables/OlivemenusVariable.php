@@ -54,4 +54,11 @@ class OlivemenusVariable
             return Olivemenus::$plugin->olivemenus->getMenuHTML($handle, $config);
         }
     }
+    
+    public function getMenu($handle)
+    {
+        if ($handle != '') {
+            return Olivemenus::$plugin->olivemenus->getMenu($handle);
+        }
+    }
 }
