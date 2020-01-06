@@ -97,6 +97,16 @@ class OlivemenusService extends Component
 
     // Frotend Methods
     // =========================================================================
+    public function getMenu($handle = false){
+      $menu = $this->getMenuByHandle($handle);
+      if($menu !== NULL){
+        $menu_items = Olivemenus::$plugin->olivemenuItems->getMenuItems($menu->id);
+        return $this->processItems($menu_items);
+      } else {
+        throw("Menu handle not found!");
+      }
+    }
+    
     public function getMenuHTML($handle = false, $config ) {
         if ($handle) {
             $localHTML = '';
@@ -134,6 +144,100 @@ class OlivemenusService extends Component
             echo $localHTML;
         }
     }
+    
+    private function processItems($menu){
+      $processedMenu = [];
+      foreach($menu as $menuItem){
+        $processedMenu[] = $this->processItem($menuItem, false);
+      }
+      return $processedMenu;
+    }
+    
+    private function processItem($menu_item, $hasParent) {
+        $menu_item_url = '';
+        $menu_class = '';
+        $ul_class = '';
+        $menu_item_class = 'menu-item';
+        $entry_id = $menu_item['entry_id'];
+        $custom_url = $menu_item['custom_url'];
+        $class = $menu_item['class'];
+        $class_parent = $menu_item['class_parent'];
+        
+        $data_attributes = '';
+        $data_json = $menu_item['data_json'];
+
+        $menu_class = $class;
+        $menu_item_class = $menu_item_class . ' ' .$class_parent;
+
+        if ($custom_url != '') {
+            $menu_item_url = $this->replaceEnvironmentVariables($custom_url);
+        } else {
+            $entry = Entry::find()
+                ->id($menu_item['entry_id'])
+                ->one();
+
+            if (!empty($entry) ) $menu_item_url = $entry->url;
+            else {
+                $entry = Category::find()
+                ->id($menu_item['entry_id'])
+                ->one();
+
+                if (!empty($entry) ) $menu_item_url = $entry->url;
+            }
+        }
+
+        if ($data_json) {
+            $data_attributes = ' ';
+            $data_json = explode(PHP_EOL, $data_json);
+            foreach ($data_json as $data_item) {
+                $data_item = explode(':', $data_item);
+                $data_attributes .= trim($data_item[0]) . '="' .trim($data_item[1]). '"';
+            }
+            
+        }
+        
+        $menuItem = [];
+        $menuItem["id"] = $menu_item["id"];
+        $menuItem["class"] = $menu_item_class;
+        $menuItem["active"] = false;
+
+        $current_active_url = Craft::$app->request->getUrl();
+        if ($current_active_url != '' && $menu_item_url != '') {
+            $menu_item_url_filtered = preg_replace('#^https?://#', '', $menu_item_url);
+            $current_active_url = preg_replace('/\?.*/', '', $current_active_url); // Remove query string
+            $current_active_url = preg_replace('/\\#.*/', '', $current_active_url); // Remove query string
+            
+            $parentUrl = dirname($current_active_url);
+            
+            if (($parentUrl == $menu_item_url_filtered) || ($current_active_url == $menu_item_url_filtered )) {
+                $menuItem["active"] = true;
+            }
+        }
+        
+        
+        if ($menu_item_url) {
+            $menuItem["url"] = $menu_item_url;
+        }
+        $menuItem["title"] = Craft::t('olivemenus', $menu_item['name']);
+        
+        
+        if (isset($menu_item['children'])) {
+            $children = [];
+                foreach ( $menu_item['children'] as $child )
+                {
+                   $children[] = $this->processItem($child, true);
+                }
+                
+                $menuItem["childrens"] = $children;
+                
+        } else {
+          $menuItem["childrens"] = [];
+        }
+
+      
+
+        return $menuItem;
+    }
 
     private function getMenuItemHTML($menu_item, $config) {
         $menu_item_url = '';
@@ -150,16 +254,6 @@ class OlivemenusService extends Component
 
         $menu_class = $class;
         $menu_item_class = $menu_item_class . ' ' .$class_parent;
-
-        if (!empty($config)) {
-            if (isset($config['li-class'])) {
-                $menu_item_class .= ' ' . $config['li-class'];
-            }
-
-            if (isset($config['link-class'])) {
-                $menu_class .= ' ' . $config['link-class'];
-            }
-        }
 
         if ($custom_url != '') {
             $menu_item_url = $this->replaceEnvironmentVariables($custom_url);
